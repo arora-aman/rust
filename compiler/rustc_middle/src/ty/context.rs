@@ -372,6 +372,7 @@ pub struct TypeckResults<'tcx> {
     pat_adjustments: ItemLocalMap<Vec<Ty<'tcx>>>,
 
     /// Borrows
+    /// FIXME: Remove this once the commit is ready.
     pub upvar_capture_map: ty::UpvarCaptureMap<'tcx>,
 
     /// Records the reasons that we picked the kind of each closure;
@@ -413,7 +414,13 @@ pub struct TypeckResults<'tcx> {
     /// The upvarID contains the HIR node ID and it also contains the full path
     /// leading to the member of the struct or tuple that is used instead of the
     /// entire variable.
+    /// FIXME: Remove this once the commit is ready.
     pub closure_captures: ty::UpvarListMap,
+
+    /// Given the closure ID this map provides the list of
+    /// `Place`s and how/why are they captured by the closure.
+    /// FIXME: Rename this to closure_captures once the commit is ready.
+    pub closure_capture_information: ty::CaptureInformationMap<'tcx>,
 
     /// Stores the type, expression, span and optional scope span of all types
     /// that are live across the yield of this generator (if a generator).
@@ -442,6 +449,7 @@ impl<'tcx> TypeckResults<'tcx> {
             tainted_by_errors: None,
             concrete_opaque_types: Default::default(),
             closure_captures: Default::default(),
+            closure_capture_information: Default::default(),
             generator_interior_types: Default::default(),
         }
     }
@@ -680,6 +688,7 @@ impl<'a, 'tcx> HashStable<StableHashingContext<'a>> for TypeckResults<'tcx> {
             tainted_by_errors,
             ref concrete_opaque_types,
             ref closure_captures,
+            ref closure_capture_information,
             ref generator_interior_types,
         } = *self;
 
@@ -713,6 +722,7 @@ impl<'a, 'tcx> HashStable<StableHashingContext<'a>> for TypeckResults<'tcx> {
             tainted_by_errors.hash_stable(hcx, hasher);
             concrete_opaque_types.hash_stable(hcx, hasher);
             closure_captures.hash_stable(hcx, hasher);
+            closure_capture_information.hash_stable(hcx, hasher);
             generator_interior_types.hash_stable(hcx, hasher);
         })
     }
