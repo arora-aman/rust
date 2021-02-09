@@ -1154,8 +1154,6 @@ impl<'a, 'tcx> euv::Delegate<'tcx> for InferBorrowKind<'a, 'tcx> {
 }
 
 /// Truncate projections so that following rules are obeyed by the captured `place`:
-///
-/// - No Derefs in move closure, this will result in value behind a reference getting moved.
 /// - No projections are applied to raw pointers, since these require unsafe blocks. We capture
 ///   them completely.
 /// - No Index projections are captured, since arrays are captured completely.
@@ -1197,6 +1195,7 @@ fn restrict_capture_precision<'tcx>(mut place: Place<'tcx>) -> Place<'tcx> {
     place
 }
 
+/// Truncates a place so that the resultant capture doesn't move data out of a reference
 fn truncate_capture_for_move(mut place: Place<'tcx>) -> Place<'tcx> {
     for (i, proj) in place.projections.iter().enumerate() {
         match proj.kind {
