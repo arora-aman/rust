@@ -172,6 +172,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             self.perform_2229_migration_anaysis(closure_def_id, body_id, capture_clause, span);
         }
 
+        let after_feature_tys = self.final_upvar_tys(closure_def_id);
+
         // We now fake capture information for all variables that are mentioned within the closure
         // We do this after handling migrations so that min_captures computes before
         if !self.tcx.features().capture_disjoint_fields {
@@ -199,6 +201,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // This will update the min captures based on this new fake information.
             self.compute_min_captures(closure_def_id, capture_information);
         }
+        let before_feature_tys = self.final_upvar_tys(closure_def_id);
 
         if let Some(closure_substs) = infer_kind {
             // Unify the (as yet unbound) type variable in the closure
@@ -255,12 +258,86 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             .collect();
         self.typeck_results.borrow_mut().closure_fake_reads.insert(closure_def_id, fake_reads);
 
+        //if std::env::var("SG_EVAL_SIZE").is_ok() {
+        self.eval_size(ty, before_feature_tys, after_feature_tys);
+        //}
+
         // If we are also inferred the closure kind here,
         // process any deferred resolutions.
         let deferred_call_resolutions = self.remove_deferred_call_resolutions(closure_def_id);
         for deferred_call_resolution in deferred_call_resolutions {
             deferred_call_resolution.resolve(self);
         }
+    }
+
+    fn eval_size(
+        &self,
+        ty: Ty<'tcx>,
+        before_feature_tys: Vec<Ty<'tcx>>,
+        after_feature_tys: Vec<Ty<'tcx>>,
+    ) {
+        let (closure_def_id, old_ty, new_ty) = match *ty.kind() {
+            ty::Closure(def_id, substs) => {
+                let closure_substs = substs.as_closure();
+
+                let old_parts = ty::ClosureSubstsParts {
+                    parent_substs: closure_substs.parent_substs(),
+                    closure_kind_ty: closure_substs.kind_ty(),
+                    closure_sig_as_fn_ptr_ty: closure_substs.sig_as_fn_ptr_ty(),
+                    tupled_upvars_ty: self.tcx.mk_tup(before_feature_tys.into_iter()),
+                };
+                let new_parts = ty::ClosureSubstsParts {
+                    tupled_upvars_ty: self.tcx.mk_tup(after_feature_tys.into_iter()),
+                    ..old_parts.clone()
+                };
+                let old_closure_substs = ty::ClosureSubsts::new(self.tcx, old_parts);
+                let new_closure_substs = ty::ClosureSubsts::new(self.tcx, new_parts);
+
+                (
+                    def_id,
+                    self.tcx.mk_closure(def_id, old_closure_substs.substs),
+                    self.tcx.mk_closure(def_id, new_closure_substs.substs),
+                )
+            }
+
+            ty::Generator(def_id, substs, mov) => {
+                let gen_substs = substs.as_generator();
+
+                let old_parts = ty::GeneratorSubstsParts {
+                    parent_substs: gen_substs.parent_substs(),
+                    resume_ty: gen_substs.resume_ty(),
+                    yield_ty: gen_substs.yield_ty(),
+                    return_ty: gen_substs.return_ty(),
+                    witness: gen_substs.witness(),
+                    tupled_upvars_ty: self.tcx.mk_tup(before_feature_tys.into_iter()),
+                };
+                let new_parts = ty::GeneratorSubstsParts {
+                    tupled_upvars_ty: self.tcx.mk_tup(after_feature_tys.into_iter()),
+                    ..old_parts.clone()
+                };
+                let old_gen_substs = ty::GeneratorSubsts::new(self.tcx, old_parts);
+                let new_gen_substs = ty::GeneratorSubsts::new(self.tcx, new_parts);
+                (
+                    def_id,
+                    self.tcx.mk_generator(def_id, old_gen_substs.substs, mov),
+                    self.tcx.mk_generator(def_id, new_gen_substs.substs, mov),
+                )
+            }
+            _ => unreachable!(),
+        };
+        let param_env = self.tcx.param_env(closure_def_id.expect_local());
+        let new_size = self
+            .tcx
+            .layout_of(param_env.and(self.infcx.resolve_vars_if_possible(new_ty)))
+            .map(|l| format!("{:?}", l.size.bytes()))
+            .unwrap_or(String::from("Failed"));
+        let old_size = self
+            .tcx
+            .layout_of(param_env.and(self.infcx.resolve_vars_if_possible(old_ty)))
+            .map(|l| format!("{:?}", l.size.bytes()))
+            .unwrap_or(String::from("Failed"));
+
+        println!("{}, {}", old_size, new_size);
     }
 
     // Returns a list of `Ty`s for each upvar.
