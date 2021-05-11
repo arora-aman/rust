@@ -325,19 +325,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
             _ => unreachable!(),
         };
-        let param_env = self.tcx.param_env(closure_def_id.expect_local());
-        let new_size = self
-            .tcx
-            .layout_of(param_env.and(self.infcx.resolve_vars_if_possible(new_ty)))
-            .map(|l| format!("{:?}", l.size.bytes()))
-            .unwrap_or(String::from("Failed"));
-        let old_size = self
-            .tcx
-            .layout_of(param_env.and(self.infcx.resolve_vars_if_possible(old_ty)))
-            .map(|l| format!("{:?}", l.size.bytes()))
-            .unwrap_or(String::from("Failed"));
 
-        println!("{}, {}", old_size, new_size);
+        self.typeck_results.borrow_mut().closure_size_eval.insert(closure_def_id, (old_ty, new_ty));
     }
 
     // Returns a list of `Ty`s for each upvar.

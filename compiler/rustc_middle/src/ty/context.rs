@@ -462,6 +462,9 @@ pub struct TypeckResults<'tcx> {
     /// This hashset records all instances where we behave
     /// like this to allow `const_to_pat` to reliably handle this situation.
     pub treat_byte_string_as_slice: ItemLocalSet,
+
+    /// Tuple containing the closure type before and after the feature
+    pub closure_size_eval: FxHashMap<DefId, (Ty<'tcx>, Ty<'tcx>)>,
 }
 
 impl<'tcx> TypeckResults<'tcx> {
@@ -488,6 +491,7 @@ impl<'tcx> TypeckResults<'tcx> {
             closure_fake_reads: Default::default(),
             generator_interior_types: ty::Binder::dummy(Default::default()),
             treat_byte_string_as_slice: Default::default(),
+            closure_size_eval: Default::default(),
         }
     }
 
@@ -732,6 +736,7 @@ impl<'a, 'tcx> HashStable<StableHashingContext<'a>> for TypeckResults<'tcx> {
             ref closure_fake_reads,
             ref generator_interior_types,
             ref treat_byte_string_as_slice,
+            closure_size_eval: _,
         } = *self;
 
         hcx.with_node_id_hashing_mode(NodeIdHashingMode::HashDefPath, |hcx| {

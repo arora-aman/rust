@@ -328,6 +328,7 @@ pub struct ClosureSubsts<'tcx> {
 }
 
 /// Struct returned by `split()`.
+#[derive(Clone)]
 pub struct ClosureSubstsParts<'tcx, T> {
     pub parent_substs: &'tcx [GenericArg<'tcx>],
     pub closure_kind_ty: T,
@@ -446,6 +447,7 @@ pub struct GeneratorSubsts<'tcx> {
     pub substs: SubstsRef<'tcx>,
 }
 
+#[derive(Clone)]
 pub struct GeneratorSubstsParts<'tcx, T> {
     pub parent_substs: &'tcx [GenericArg<'tcx>],
     pub resume_ty: T,

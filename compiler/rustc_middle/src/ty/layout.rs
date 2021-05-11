@@ -643,11 +643,33 @@ impl<'tcx> LayoutCx<'tcx, TyCtxt<'tcx>> {
 
             ty::Closure(_, ref substs) => {
                 let tys = substs.as_closure().upvar_tys();
-                univariant(
+                let rv = univariant(
                     &tys.map(|ty| self.layout_of(ty)).collect::<Result<Vec<_>, _>>()?,
                     &ReprOptions::default(),
                     StructKind::AlwaysSized,
-                )?
+                )?;
+
+                /*
+                // Only want to call this from the local crate otherwise we won't have access to
+                // the typeck results.
+                if env::var("SG_SIZE").is_ok() {
+                    let old_tys =
+                        tcx.upvars_mentioned(def_id).into_iter().flatten().map(|(var_hir_id, _)| {
+                            let var_def_id = tcx.hir().local_def_id(*var_hir_id).to_def_id();
+                            tcx.type_of(var_def_id)
+                        });
+
+                    let old_layout = univariant(
+                        &old_tys.map(|ty| self.layout_of(ty)).collect::<Result<Vec<_>, _>>()?,
+                        &ReprOptions::default(),
+                        StructKind::AlwaysSized,
+                    )?;
+
+                    println!("old:{:?} new:{:?}", old_layout.size, rv.size);
+                }
+                */
+
+                rv
             }
 
             ty::Tuple(tys) => {
