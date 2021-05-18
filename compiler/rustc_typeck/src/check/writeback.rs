@@ -335,39 +335,20 @@ impl<'cx, 'tcx> Visitor<'tcx> for WritebackCx<'cx, 'tcx> {
 
 impl<'cx, 'tcx> WritebackCx<'cx, 'tcx> {
     fn eval_closure_size(&mut self) {
+        let mut res: FxHashMap<DefId, (Ty<'tcx>, Ty<'tcx>)> = Default::default();
         for (closure_def_id, (old_ty, new_ty)) in
             self.fcx.typeck_results.borrow().closure_size_eval.iter()
         {
-            let param_env = self.tcx().param_env(closure_def_id.expect_local());
             let closure_hir_id =
                 self.tcx().hir().local_def_id_to_hir_id(closure_def_id.expect_local());
 
             let old_ty = self.resolve(*old_ty, &closure_hir_id);
             let new_ty = self.resolve(*new_ty, &closure_hir_id);
 
-            let new_size = self
-                .tcx()
-                .layout_of(param_env.and(new_ty))
-                .map(|l| format!("{:?}", l.size.bytes()))
-                .unwrap_or_else(|e| format!("Failed {:?}", e));
-            let old_size = self
-                .tcx()
-                .layout_of(param_env.and(old_ty))
-                .map(|l| format!("{:?}", l.size.bytes()))
-                .unwrap_or_else(|e| format!("Failed {:?}", e));
-
-            let closure_span = self.tcx().hir().span(closure_hir_id);
-            let src_file = self.tcx().sess.source_map().span_to_filename(closure_span);
-            let line_nos = self
-                .tcx()
-                .sess
-                .source_map()
-                .span_to_lines(closure_span)
-                .map(|l| format!("{:?} {:?}", l.lines.first(), l.lines.last()))
-                .unwrap_or_else(|e| format!("{:?}", e));
-
-            println!("{}, {}, {:?} {:?}", old_size, new_size, src_file, line_nos);
+            res.insert(*closure_def_id, (old_ty, new_ty));
         }
+
+        self.typeck_results.closure_size_eval = res;
     }
     fn visit_min_capture_map(&mut self) {
         let mut min_captures_wb = ty::MinCaptureInformationMap::with_capacity_and_hasher(

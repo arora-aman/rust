@@ -1014,7 +1014,38 @@ fn create_fn_mono_item<'tcx>(
     source: Span,
 ) -> Spanned<MonoItem<'tcx>> {
     debug!("create_fn_mono_item(instance={})", instance);
-    respan(source, MonoItem::Fn(instance.polymorphize(tcx)))
+    let instance = instance.polymorphize(tcx);
+
+    let closure_def_id = instance.def_id();
+    if closure_def_id.is_local() && tcx.is_closure(closure_def_id) {
+        let typeck_results = tcx.typeck(closure_def_id.expect_local());
+        let param_env = ty::ParamEnv::reveal_all();
+
+        let (old_ty, new_ty) = typeck_results.closure_size_eval[&closure_def_id];
+
+        let new_size = tcx
+            .layout_of(param_env.and(new_ty))
+            .map(|l| format!("{:?}", l.size.bytes()))
+            .unwrap_or_else(|e| format!("Failed {:?}", e));
+        let old_size = tcx
+            .layout_of(param_env.and(old_ty))
+            .map(|l| format!("{:?}", l.size.bytes()))
+            .unwrap_or_else(|e| format!("Failed {:?}", e));
+
+        let closure_hir_id = tcx.hir().local_def_id_to_hir_id(closure_def_id.expect_local());
+        let closure_span = tcx.hir().span(closure_hir_id);
+        let src_file = tcx.sess.source_map().span_to_filename(closure_span);
+        let line_nos = tcx
+            .sess
+            .source_map()
+            .span_to_lines(closure_span)
+            .map(|l| format!("{:?} {:?}", l.lines.first(), l.lines.last()))
+            .unwrap_or_else(|e| format!("{:?}", e));
+
+        println!("{}, {}, {:?} {:?}", old_size, new_size, src_file, line_nos);
+    }
+
+    respan(source, MonoItem::Fn(instance))
 }
 
 /// Creates a `MonoItem` for each method that is referenced by the vtable for
