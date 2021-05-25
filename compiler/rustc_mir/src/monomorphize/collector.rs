@@ -1021,7 +1021,9 @@ fn create_fn_mono_item<'tcx>(
         let typeck_results = tcx.typeck(closure_def_id.expect_local());
         let param_env = ty::ParamEnv::reveal_all();
 
-        let (old_ty, new_ty) = typeck_results.closure_size_eval[&closure_def_id];
+        let (_, new_ty) = typeck_results.closure_size_eval[&closure_def_id];
+
+        let old_ty = instance.ty(tcx, param_env);
 
         let new_size = tcx
             .layout_of(param_env.and(new_ty))
