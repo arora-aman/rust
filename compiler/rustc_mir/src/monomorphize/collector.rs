@@ -1028,6 +1028,8 @@ fn create_fn_mono_item<'tcx>(
             let (_, new_ty) = typeck_results.closure_size_eval[&closure_def_id];
 
             let old_ty = instance.ty(tcx, param_env);
+            let new_ty =
+                tcx.subst_and_normalize_erasing_regions(instance.substs, param_env, new_ty);
 
             let new_size = tcx
                 .layout_of(param_env.and(new_ty))

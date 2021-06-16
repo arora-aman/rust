@@ -259,7 +259,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         self.typeck_results.borrow_mut().closure_fake_reads.insert(closure_def_id, fake_reads);
 
         //if std::env::var("SG_EVAL_SIZE").is_ok() {
-        self.eval_size(ty, before_feature_tys, after_feature_tys);
+        self.eval_size(closure_def_id, before_feature_tys, after_feature_tys);
         //}
 
         // If we are also inferred the closure kind here,
@@ -272,61 +272,17 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn eval_size(
         &self,
-        ty: Ty<'tcx>,
+        closure_def_id: DefId,
         before_feature_tys: Vec<Ty<'tcx>>,
         after_feature_tys: Vec<Ty<'tcx>>,
     ) {
-        let (closure_def_id, old_ty, new_ty) = match *ty.kind() {
-            ty::Closure(def_id, substs) => {
-                let closure_substs = substs.as_closure();
-
-                let old_parts = ty::ClosureSubstsParts {
-                    parent_substs: closure_substs.parent_substs(),
-                    closure_kind_ty: closure_substs.kind_ty(),
-                    closure_sig_as_fn_ptr_ty: closure_substs.sig_as_fn_ptr_ty(),
-                    tupled_upvars_ty: self.tcx.mk_tup(before_feature_tys.into_iter()),
-                };
-                let new_parts = ty::ClosureSubstsParts {
-                    tupled_upvars_ty: self.tcx.mk_tup(after_feature_tys.into_iter()),
-                    ..old_parts.clone()
-                };
-                let old_closure_substs = ty::ClosureSubsts::new(self.tcx, old_parts);
-                let new_closure_substs = ty::ClosureSubsts::new(self.tcx, new_parts);
-
-                (
-                    def_id,
-                    self.tcx.mk_closure(def_id, old_closure_substs.substs),
-                    self.tcx.mk_closure(def_id, new_closure_substs.substs),
-                )
-            }
-
-            ty::Generator(def_id, substs, mov) => {
-                let gen_substs = substs.as_generator();
-
-                let old_parts = ty::GeneratorSubstsParts {
-                    parent_substs: gen_substs.parent_substs(),
-                    resume_ty: gen_substs.resume_ty(),
-                    yield_ty: gen_substs.yield_ty(),
-                    return_ty: gen_substs.return_ty(),
-                    witness: gen_substs.witness(),
-                    tupled_upvars_ty: self.tcx.mk_tup(before_feature_tys.into_iter()),
-                };
-                let new_parts = ty::GeneratorSubstsParts {
-                    tupled_upvars_ty: self.tcx.mk_tup(after_feature_tys.into_iter()),
-                    ..old_parts.clone()
-                };
-                let old_gen_substs = ty::GeneratorSubsts::new(self.tcx, old_parts);
-                let new_gen_substs = ty::GeneratorSubsts::new(self.tcx, new_parts);
-                (
-                    def_id,
-                    self.tcx.mk_generator(def_id, old_gen_substs.substs, mov),
-                    self.tcx.mk_generator(def_id, new_gen_substs.substs, mov),
-                )
-            }
-            _ => unreachable!(),
-        };
-
-        self.typeck_results.borrow_mut().closure_size_eval.insert(closure_def_id, (old_ty, new_ty));
+        self.typeck_results.borrow_mut().closure_size_eval.insert(
+            closure_def_id,
+            (
+                self.tcx.mk_tup(before_feature_tys.into_iter()),
+                self.tcx.mk_tup(after_feature_tys.into_iter()),
+            ),
+        );
     }
 
     // Returns a list of `Ty`s for each upvar.
